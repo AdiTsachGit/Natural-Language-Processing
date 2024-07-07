@@ -1,0 +1,1148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<link rel="stylesheet" href="../../cours.css" charset="ISO-8859-1" type="text/css">
+<link rel="stylesheet" href="../../jupyter.css" charset="ISO-8859-1" type="text/css">
+<title>Introduction to Natural Language Processing (CS-431) - Evaluation (Solution)</title>
+</head>
+<body>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Spam-Classification-Evaluation">Spam Classification Evaluation<a class="anchor-link" href="#Spam-Classification-Evaluation">&#182;</a></h1>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>This practical sessions was produced using <a href="http://jupyter.org">Jupyter</a>. If you are used to it, you can <a href="TP-SpamClassification.ipynb">download the corresponding notebook code from here</a>. If not, no problem at all, this is not mandatory: simply proceed as usual in your favorite Python environment.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Introduction">Introduction<a class="anchor-link" href="#Introduction">&#182;</a></h2><p>The aim of this practical session is to get yourself acquainted with the ill-balanced nature of NLP classification tasks and to get some exposure to the <a href="https://scikit-learn.org/stable/index.html">scikit-learn</a> and <a href="https://spacy.io/">spaCy</a> packages.</p>
+<p>A great example of a highly-biased task is <strong>spam classification</strong>. The goal of the task is to classify whether a given piece of text (e.g., email, sms message) is spam or not. Since there are only 2 classes (spam or not), we call such tasks <strong>binary classification</strong>.</p>
+<p>In reality, the amount of examples we have of non-spam emails is much larger than the ones that are spam. Therefore, we need proper evaluation techniques to deal with such a class imbalance.</p>
+<p><em>Fun fact: if a piece of text is not spam, it's popularly called ham!</em></p>
+<h3 id="Content-Warning:-this-exercise's-data-will-contain-explicit-words.">Content Warning: this exercise's data will contain explicit words.<a class="anchor-link" href="#Content-Warning:-this-exercise's-data-will-contain-explicit-words.">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Setting-up-your-environment">Setting up your environment<a class="anchor-link" href="#Setting-up-your-environment">&#182;</a></h2><p>While you can downlaod the following packages with <code>pip</code> to your computer directly, we recommend <strong>(but not require)</strong> you to use a <a href="https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/">virtual environment</a> to not mess up the package versions for different project. If you'd like to, here is a <a href="https://docs.google.com/document/d/1D8TapyWrfyWijfrGq5BtYfrAoWmSmgcP-Gx3i2MXWvo/edit">quick tutorial</a> on virtual environments that you can checkout with an EPFL email.</p>
+<p>First make sure you have (a virtual environment (e.g., <a href="https://docs.python.org/3/library/venv.html">venv, virtualenv</a>, <a href="https://docs.conda.io/en/latest/miniconda.html">conda</a>), and that the environment has) a Python version &gt;= 3.6, per <a href="https://spacy.io/usage">spaCy package requirements</a>. If you are using the a Jupyter Notebook, make sure the interpreter points to the correct <code>python</code> executable.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Then install the following packages:</p>
+
+<pre><code>pip install -U ipykernel
+pip install -U pip setuptools wheel
+pip install -U pandas
+pip install -U matplotlib
+pip install -U scikit-learn
+pip install -U seaborn
+pip install -U spacy
+pip install -U classy-classification
+
+python -m spacy download en_core_web_sm</code></pre>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Next, import the necessary packages:</p>
+<p><em>Note: if this part of the code hangs, simply restart your kernel and rerun, sometimes importing packages multiple times can create a problem</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># Importing necessary packages:</span>
+<span class="kn">import</span> <span class="nn">spacy</span>
+<span class="kn">import</span> <span class="nn">classy_classification</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">seaborn</span> <span class="k">as</span> <span class="nn">sns</span>
+<span class="kn">from</span> <span class="nn">sklearn.metrics</span> <span class="kn">import</span> <span class="n">accuracy_score</span><span class="p">,</span> <span class="n">precision_score</span><span class="p">,</span> <span class="n">recall_score</span><span class="p">,</span> <span class="n">f1_score</span><span class="p">,</span> <span class="n">confusion_matrix</span><span class="p">,</span> <span class="n">precision_recall_curve</span>
+<span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">train_test_split</span><span class="p">,</span> <span class="n">KFold</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">metrics</span>
+
+<span class="c1"># Setting the seed:</span>
+<span class="n">seed</span> <span class="o">=</span> <span class="mi">42</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;PYTHONHASHSEED&#39;</span><span class="p">]</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+<span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+
+<span class="c1"># Setting print options for readability:</span>
+<span class="n">pd</span><span class="o">.</span><span class="n">set_option</span><span class="p">(</span><span class="s1">&#39;display.max_columns&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<span class="n">pd</span><span class="o">.</span><span class="n">set_option</span><span class="p">(</span><span class="s1">&#39;display.expand_frame_repr&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+<span class="n">pd</span><span class="o">.</span><span class="n">set_option</span><span class="p">(</span><span class="s1">&#39;max_colwidth&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now you are ready to start the exercises!</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1)-Brief-Data-Analysis-&amp;-Processing">1) Brief Data Analysis &amp; Processing<a class="anchor-link" href="#1)-Brief-Data-Analysis-&amp;-Processing">&#182;</a></h2><p>To evaluate the spam task, we will use an annotated English sms corpus from  Kaggle. You can download the data <a href="https://coling.epfl.ch/TP/spam.csv">here</a>. Run the following 2 blocks of code to see what the data looks like:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;spam.csv&quot;</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">,</span><span class="s1">&#39;sms&#39;</span><span class="p">],</span> <span class="n">usecols</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">df</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">df</span><span class="o">.</span><span class="n">tail</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As you can see there are 2 types of classes: "ham" &amp; "spam". Let's take a look at their distribution:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Label counts are:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;______________________&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Label percentages are:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">normalize</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: How is this dataset's label distribution imbalanced? Which datapoints are more common?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+The labels are heavily biased on the ham side. We have very little spam datapoints.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Let's do some minor data processing. We map the labels {"ham" $\implies$ 0} and {"spam" $\implies$ 1} as our goal is to identify spam messages.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">to_replace</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;ham&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;spam&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+<span class="n">df</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Then, to make sure that we don't overfit our models to the data, we split the data into train and test sets. We use the very convenient <a href="https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html"><strong>train_test_split</strong></a> function from <a href="https://scikit-learn.org/stable/index.html">scikit-learn</a>. The <em>test_size</em> parameter allows us to choose what percentage of the data should be in the test set. $x$ is the sms message, while $y$ is the corresponding label to the sms.</p>
+<p>Remember, when you are prototyping a model, never use the test data. The goal of the test data is to simulate an independently sampled dataset, that cannot be seen during training and model designing. Extracted statistics should come from the training set only.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">x_train</span><span class="p">,</span> <span class="n">x_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;sms&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Spam amount in train set: </span><span class="si">{}</span><span class="s2"> out of </span><span class="si">{}</span><span class="s2"> datapoints&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">((</span><span class="n">y_train</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_train</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Spam percentage in train set: </span><span class="si">{}</span><span class="s2">%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">y_train</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">y_train</span><span class="p">))</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">4</span><span class="p">)))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Size of train set is: &quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_train</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Size of test set is: &quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_test</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2)-Simple-&amp;-Random-Classifiers">2) Simple &amp; Random Classifiers<a class="anchor-link" href="#2)-Simple-&amp;-Random-Classifiers">&#182;</a></h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="2.1)-Accuracy">2.1) Accuracy<a class="anchor-link" href="#2.1)-Accuracy">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Our first task is to evaluate simple classifiers to see how well they do on the spam classification task. Note that while there is a text input, none of these classifiers actually care about the content of the string. Remember that a <strong>prior</strong> in probability is one's belief about a quantity given some past evidence.</p>
+<ol>
+<li><p><strong>rand_binom_uniform_classifier:</strong> The first model uniformly randomly classifies the label for a given piece of text, meaning the prior is $p=0.5$.</p>
+</li>
+<li><p><strong>rand_binom_biased_classifier:</strong> The second model binomally samples a label, <em>you should chose which prior $p$ you think makes the most sense!</em></p>
+</li>
+<li><p><strong>always_false_classifier:</strong> The third model returns always false, basically assuming that no text can ever be spam.</p>
+</li>
+</ol>
+<p>Don't forget to change the value <strong>prior_p</strong> $=0.5$! Chose the value informatively! Think which statistics can help you with this.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1">##############################</span>
+<span class="c1"># TODO: write a prior you think that makes the most sense in the next line for the rand_binom_biased_classifier:</span>
+<span class="n">prior_p</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="c1"># &lt;-------- CHANGE THIS VALUE!</span>
+<span class="c1">##############################</span>
+
+<span class="k">def</span> <span class="nf">rand_binom_uniform_classifier</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unfiormly randomly picks a binary label.</span>
+<span class="sd">    Returns ints 0 or 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">binomial</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">rand_binom_biased_classifier</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Randomly picks a binary label according to a prior_p.</span>
+<span class="sd">    Returns ints 0 or 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">binomial</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="n">prior_p</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">always_false_classifier</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Always returns int 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="mi">0</span>
+
+<span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Applies model prediction on every sentence.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">model</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">dataset</span><span class="p">]</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now we are going to use the <a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.accuracy_score.html">accuracy_score</a> metric provided by scikit-learn:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">rand_binom_uniform_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">rand_binom_uniform_classifier</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+<span class="n">rand_binom_biased_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">rand_binom_biased_classifier</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+<span class="n">always_false_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">always_false_classifier</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;Rand Uniform&quot;</span><span class="p">,</span> <span class="n">rand_binom_uniform_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Rand Binom p=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">prior_p</span><span class="p">),</span> <span class="n">rand_binom_biased_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Always False&quot;</span><span class="p">,</span> <span class="n">always_false_classifier</span><span class="p">)]:</span>
+    <span class="n">test_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+    <span class="n">test_accuracy</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span> <span class="c1"># NOTE: here we pass the gold labels and the predicted labels to calculate how well our model is doing</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Model: </span><span class="si">{}</span><span class="s2"> || Accuracy: </span><span class="si">{}</span><span class="s2">%&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">model_name</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">test_accuracy</span> <span class="o">*</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">4</span><span class="p">)))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Wow! Looks like the "Always False" classifier is amazing at this task, even better than randomly choosing. Over 85% sounds like a pretty good result. Can we call it quits, and go home now? Not so fast... Answer the following questions.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: Which prior did you choose and why do you think it fits the problem? If you chose your prior informatively, the Rand Binom classifier should be better than the Rand Uniform classifier. Why is the biased random classifier doing better than the uniform one?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+The prior_p that should've been picked is around 13%, depending on what statistics we get from the training data. It fits the problem as most of the time the random classifier should guess that the message is not spam. If the model guesses spam 50% of the time, it will get it wrong more often.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: How would using testing data to design the model be "bad practice"? Give an example.</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+By using test statistics, we can make our test metrics (such as accuracy) look better than what they actually are. An example would be, if we have designed a model ourselves, and use test statistics to adjust our model's parameters, this can be a form of cheating scientific results.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: Why is the accuracy score not the correct metric to use in this task? Which classifier is a good example of this? What other metrics can be used and why would they be a better fit for this task?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+For uneven classes, accuracy cannot distinguish a well performing system.  
+We can see this from the "Always False" classifier, that doesn't help us solve anything (nothing spam gets filtered out, the task isn't even remotely handled).
+A better metric can be something that measures precision and/or recall.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="2.2)-Precision,-Recall,-F1-score-&amp;-Friends">2.2) Precision, Recall, F1-score &amp; Friends<a class="anchor-link" href="#2.2)-Precision,-Recall,-F1-score-&amp;-Friends">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now that you have convinced yourself that accuracy is not the sole metric we should be using. 
+For the other possible scores we let you explore the following metrics conveniently provided by scikit-learn:</p>
+<ul>
+<li><a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_score.html">precision_score</a></li>
+<li><a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.recall_score.html">recall_score</a></li>
+<li><a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html">f1_score</a></li>
+<li><a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html">confusion_matrix</a> - while this is not a metric, it allows to visualize the true positives, true negatives, false positives, and false negatives (TP, TN, FP, FN)</li>
+</ul>
+<p>Note that some of these function also has a <em>zero_division</em> parameter as the denominator of these metrics can be validly 0. In that case the default is to also output 0, but a warning may be raised. Feel free to ignore the warning.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<hr>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>TIP: Can you not remember what precision and recall is? Remember it with the start of the word:</p>
+<ul>
+<li><p>Precision: PREcision is TP divided by <strong>PREdicted</strong> positive:</p>
+<blockquote><p>$ \frac{TP}{TP+FP}$</p>
+</blockquote>
+</li>
+<li><p>Recall: REcAll is TP divided by <strong>REAl</strong> positive: TP/(TP+FN)</p>
+<blockquote><p>$ \frac{TP}{TP+FN}$</p>
+</blockquote>
+</li>
+</ul>
+<p>source: <a href="https://stats.stackexchange.com/questions/122225/what-is-the-best-way-to-remember-the-difference-between-sensitivity-specificity">stats.stackexchange</a></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<hr>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;Rand Uniform&quot;</span><span class="p">,</span> <span class="n">rand_binom_uniform_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Rand Binom p=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">prior_p</span><span class="p">),</span> <span class="n">rand_binom_biased_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Always False&quot;</span><span class="p">,</span> <span class="n">always_false_classifier</span><span class="p">)]:</span>
+    
+    <span class="n">test_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+    
+    <span class="n">test_accuracy</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_precision</span> <span class="o">=</span> <span class="n">precision_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_recall</span> <span class="o">=</span> <span class="n">recall_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_f1</span> <span class="o">=</span> <span class="n">f1_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">cf_train_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+
+    <span class="c1"># print(&quot;________________________________________________________________&quot;)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Model: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">model_name</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Accuracy: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_accuracy</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Precision: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_precision</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Recall: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_recall</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| F1: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_f1</span><span class="p">))</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">cf_train_matrix</span><span class="p">,</span> <span class="n">annot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Predicted Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Real Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: What do precision, recall, or the confusion metrics tell us about the <em>"Always False"</em> model? Why don't we see this phenomenon with the random classifiers?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+The confusion matrix shows that all true negatives (TN) are caught, but that none of the true positives (TP) is caught either.
+The random classifiers sometimes predict the true positives (TP), which is why the (1, 1) square isn't empty for them.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: What would be a more ideal confusion matrix result?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+An ideal confusion matrix is one where the TP TN diagonal values are higher than the FP FN diagonal values.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3)-Big-IF-Keyword-Matching-Classifier">3) Big IF Keyword-Matching Classifier<a class="anchor-link" href="#3)-Big-IF-Keyword-Matching-Classifier">&#182;</a></h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>So far, our models haven't taken into account the actual text. In this next task we build the most simple AI algorithm: a big IF statement that classifies the text as spam if a "spam word" is being used. To do so we first have to break the sentence down into words. Assuming we only have English sentences, we can separate them by space or punctuation. This action of breaking a sentence into tokens is called <a href="https://spacy.io/usage/linguistic-features#tokenization">tokenization</a>. For now instead of using the spaCy implementation, let's create our own simple tokenizer that turns a sentence into a list of tokens by splitting on empty spaces.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Consider the sentence: "I am not a spam message, don't confuse me with it!"
+There are many ways we could break it into tokens:</p>
+<ul>
+<li>With just space: <ul>
+<li>['I', 'am', 'not', 'a', 'spam', 'message,', "don't", 'confuse', 'me', 'with', 'it!']</li>
+</ul>
+</li>
+<li>Separate punctuation as well:<ul>
+<li>['I', 'am', 'not', 'a', 'spam', 'message', ',', "don't", 'confuse', 'me', 'with', 'it', '!']</li>
+</ul>
+</li>
+<li>Separating on apostrophe:<ul>
+<li>['I', 'am', 'not', 'a', 'spam', 'message', ',', 'do', "n't", 'confuse', 'me', 'with', 'it', '!']</li>
+</ul>
+</li>
+</ul>
+<p>You could even tokenize sentence into subword elements. For example, it won't be very interesting, but you could even break it into characters!:</p>
+<ul>
+<li>['I', 'a', 'm', 'n', 'o', 't', 'a', 's', 'p', 'a', 'm', 'm', 'e', 's', 's', 'a', 'g', 'e', ',', 'd', 'o', 'n', "'", 't', 'c', 'o', 'n', 'f', 'u', 's', 'e', 'm', 'e', 'w', 'i', 't', 'h', 'i', 't', '!']</li>
+</ul>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">simple_tokenizer</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">custom_tokenizer</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="k">pass</span> <span class="c1"># TODO: OPTIONAL, have fun! Implement your own tokenizer that&#39;s more elegant than the above one</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">simple_tokenizer</span><span class="p">(</span><span class="s2">&quot;I am not a spam message, don&#39;t confuse me with it!&quot;</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">custom_tokenizer</span><span class="p">(</span><span class="s2">&quot;I am not a spam message, don&#39;t confuse me with it!&quot;</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Let's take a look at what our tokenizer does on our dataset:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">x_tokenized_test</span> <span class="o">=</span> <span class="p">[</span><span class="n">simple_tokenizer</span><span class="p">(</span><span class="n">sentence</span><span class="p">)</span> <span class="k">for</span> <span class="n">sentence</span> <span class="ow">in</span> <span class="n">x_test</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">]:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;__________________________________________________________________&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Label: &quot;</span><span class="p">,</span> <span class="n">y_test</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Sentence: &quot;</span><span class="p">,</span> <span class="n">x_test</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Tokenized version: &quot;</span><span class="p">,</span> <span class="n">x_tokenized_test</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># TODO: Change or fill more with words you think indicate a spam message!</span>
+<span class="n">spam_words</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;money&quot;</span><span class="p">,</span> <span class="s2">&quot;drugs&quot;</span><span class="p">,</span> <span class="s2">&quot;winner&quot;</span><span class="p">]</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now let's implement our keyword matching algorithm:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">big_if_classifier</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+    <span class="n">tokenized_text</span> <span class="o">=</span> <span class="n">simple_tokenizer</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">tokenized_text</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">spam_words</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="mi">0</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Next, we evaluate the big if classifier:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[(</span><span class="s2">&quot;Big If&quot;</span><span class="p">,</span> <span class="n">big_if_classifier</span><span class="p">)]:</span>
+    
+    <span class="n">test_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+    <span class="n">test_accuracy</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_precision</span> <span class="o">=</span> <span class="n">precision_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_recall</span> <span class="o">=</span> <span class="n">recall_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_f1</span> <span class="o">=</span> <span class="n">f1_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Model: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">model_name</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Accuracy: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_accuracy</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Precision: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_precision</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Recall: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_recall</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| F1: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_f1</span><span class="p">))</span>
+
+    <span class="n">cf_train_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">cf_train_matrix</span><span class="p">,</span> <span class="n">annot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Predicted Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Real Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: What are some of the shortcomings of this big-if classifier? How could you mitigate such problems?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+Money, drugs, winner can be mentioned in a non-spam context, leading to higher false positives (FP). Such spurrious correlations could be mitigated by taking into account the context in which they are being mentioned.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: What are some other linguistic features you think that could help classify spam messages without having as many false-negatives? To check what type of linguistic features you can extract with <a href="https://spacy.io/">spacy</a>, take a look at <a href="https://spacy.io/usage/linguistic-features">this page</a>.</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+There is no right or wrong answer! This is just food for thought :)</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4)-SpaCy-Classifier">4) SpaCy Classifier<a class="anchor-link" href="#4)-SpaCy-Classifier">&#182;</a></h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="Loading-the-following-classifier-can-take-from-0.5-7-minutes-depending-on-your-internet-connection,-so-start-running-this-code-while-reading-the-rest-of-the-notebook-(ignore-the-warnings!):">Loading the following classifier can take from 0.5-7 minutes depending on your internet connection, so start running this code while reading the rest of the notebook (ignore the warnings!):<a class="anchor-link" href="#Loading-the-following-classifier-can-take-from-0.5-7-minutes-depending-on-your-internet-connection,-so-start-running-this-code-while-reading-the-rest-of-the-notebook-(ignore-the-warnings!):">&#182;</a></h3>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># NOTE: Ignore the content of this code. Simply run it :)</span>
+
+<span class="c1"># -) Reformatting data for spacy text categorizer</span>
+<span class="c1">#    The few-shotness comes from the fact that we only train with 200 examples from the actual ~4000 training examples we have</span>
+<span class="n">train_data_dict</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="s2">&quot;0&quot;</span><span class="p">:</span> <span class="p">[]</span>
+<span class="p">}</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">200</span><span class="p">):</span> 
+    <span class="n">label_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">y_train</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="n">train_data_dict</span><span class="p">[</span><span class="n">label_str</span><span class="p">]</span> <span class="o">=</span> <span class="n">train_data_dict</span><span class="p">[</span><span class="n">label_str</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x_train</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+
+<span class="c1"># -) Load the spacy text categorizer / few-shot learn from the reformatted examples</span>
+<span class="n">spacy_classifier</span> <span class="o">=</span> <span class="n">spacy</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;en_core_web_sm&quot;</span><span class="p">)</span> <span class="c1"># nlp = spacy.blank(&quot;en&quot;) </span>
+<span class="n">spacy_classifier</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span>
+    <span class="s2">&quot;text_categorizer&quot;</span><span class="p">,</span> 
+    <span class="n">config</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">train_data_dict</span><span class="p">,</span> 
+        <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="s2">&quot;cpu&quot;</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>The following classifier will be a classifier trained with spacy that you will learn later on in the course. For now focus on the evaluation &amp; some cool aspects of this package.</p>
+<p>You may have noticed that our tokenization is too simple. "money" could be written right before a comma, and apostrophes might also create duplicate tokens that actually refer to the same word. Spacy provides a <a href="https://spacy.io/usage/linguistic-features#tokenization">tokenizer</a> for different languages that takes care of such edge cases.</p>
+<p>And that's not only it! The framework is organized as a pipeline that takes a plain string <strong>text</strong> and turns it into a featurized <strong>Doc</strong>. Document here doesn't mean multiple sentences. You can think of <strong>Doc</strong> as an augmentation of the plain text into meaningful linguistic features that can be better signals for classification tasks. Here is a possible set of <a href="https://spacy.io/usage/processing-pipelines">components</a> to make up the spacy <em>nlp</em> pipeline:</p>
+<p><img src="spacy-pipeline.svg" alt="NLP Pipeline"></p>
+<p>Notice that the tokenizer is separate. This is because for a given language, spaCy has only one tokenizer. As said on the <a href="https://spacy.io/usage/processing-pipelines#pipeline-components-tokenizer:~:text=The%20capabilities%20of%20a%20processing%20pipeline%20always%20depend%20on%20the%20components">website</a>:</p>
+<blockquote><p>[...] while all other pipeline components take a Doc and return it, the tokenizer takes a string of text and turns it into a Doc</p>
+</blockquote>
+<p>So let's create an English pipeline with only the tokenizer by disabling the rest of the components.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>First, we need to load the language specific <strong>nlp</strong> pipeline with spacy.load(). Then there are 2 ways to pass text into spacy.</p>
+<ol>
+<li>You can process an individual string with:
+<pre><code> nlp(text)</code></pre>
+</li>
+<li>You can process a stream of multiple strings with:
+<pre><code> nlp.pipe(texts)</code></pre>
+</li>
+</ol>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">sample_texts</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;This message is not a spam, believe me!!&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;I AM DEFINETLY A SPAM, give me 2000$, I need money, please help!&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;I am not a spam message, don&#39;t confuse me with it!&quot;</span>
+<span class="p">]</span>
+
+<span class="c1"># 1) Load the language specific NLP pipeline</span>
+<span class="n">nlp</span> <span class="o">=</span> <span class="n">spacy</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;en_core_web_sm&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;The default English nlp pipe components are: </span><span class="si">{}</span><span class="s2">. We disable them in the pipe call.</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nlp</span><span class="o">.</span><span class="n">pipe_names</span><span class="p">))</span>
+
+<span class="c1"># 2) Process multiple texts with the nlp.pipe function</span>
+<span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">nlp</span><span class="o">.</span><span class="n">pipe</span><span class="p">(</span><span class="n">sample_texts</span><span class="p">,</span> <span class="n">disable</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;tok2vec&#39;</span><span class="p">,</span> <span class="s1">&#39;tagger&#39;</span><span class="p">,</span> <span class="s1">&#39;parser&#39;</span><span class="p">,</span> <span class="s1">&#39;attribute_ruler&#39;</span><span class="p">,</span> <span class="s1">&#39;lemmatizer&#39;</span><span class="p">,</span> <span class="s1">&#39;ner&#39;</span><span class="p">]):</span>
+    <span class="nb">print</span><span class="p">([</span><span class="n">token</span><span class="o">.</span><span class="n">text</span> <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">doc</span><span class="p">])</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">spacy_classifier</span><span class="p">(</span><span class="s2">&quot;I am looking for kitchen appliances.&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">_</span><span class="o">.</span><span class="n">cats</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">spacy_classifier</span><span class="p">(</span><span class="s2">&quot;For only 1000$, you can also be a winner!&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">_</span><span class="o">.</span><span class="n">cats</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Wow! The predicted probabilities for each label seem quite reasonable. Now let's test this on the whole test dataset:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">def</span> <span class="nf">predict_spacy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
+    <span class="n">preds</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">pipe</span><span class="p">(</span><span class="n">dataset</span><span class="p">):</span>
+        <span class="n">res_dict</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">_</span><span class="o">.</span><span class="n">cats</span>
+        <span class="n">pred</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">res_dict</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">res_dict</span><span class="o">.</span><span class="n">get</span><span class="p">))</span> <span class="c1"># NOTE: this is one way to argmax in python</span>
+        <span class="n">preds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pred</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">preds</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Evaluating with the spacy classifier takes longer than our models, so note that the following <strong>may take around a minute</strong>:</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[(</span><span class="s2">&quot;Spacy&quot;</span><span class="p">,</span> <span class="n">spacy_classifier</span><span class="p">)]:</span>
+    
+    <span class="n">test_preds</span> <span class="o">=</span> <span class="n">predict_spacy</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_test</span><span class="p">)</span>
+    
+    <span class="n">test_accuracy</span> <span class="o">=</span> <span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_precision</span> <span class="o">=</span> <span class="n">precision_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_recall</span> <span class="o">=</span> <span class="n">recall_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">test_f1</span> <span class="o">=</span> <span class="n">f1_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+    <span class="n">cf_train_matrix</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">test_preds</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;________________________________________________________________&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Model: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">model_name</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Accuracy: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_accuracy</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Precision: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_precision</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| Recall: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_recall</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">|| F1: </span><span class="si">{}</span><span class="s2">% &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">test_f1</span><span class="p">))</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">2.5</span><span class="p">,</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">heatmap</span><span class="p">(</span><span class="n">cf_train_matrix</span><span class="p">,</span> <span class="n">annot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Predicted Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Real Labels&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: What can you notice about the precision/recall/F1/confusion matrix results? What is particularly improved compared to the "Big-If" classifier?</strong></p>
+<p><em>A: TODO - your answer here!</em></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+The number of false negatives (FN) wasn't too badly affected (didn't increase), but the number of false positives (FP) has drastically decreased, leading to the ideal high values in the TP-TN diagonal.</code></p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5)-Statistical-Significance-&amp;-Comparing-all-Models">5) Statistical Significance &amp; Comparing all Models<a class="anchor-link" href="#5)-Statistical-Significance-&amp;-Comparing-all-Models">&#182;</a></h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now that we have many models under our belt, let's compare the statistical significance of the 4 classifiers:</p>
+<ul>
+<li>Rand Binom</li>
+<li>Always False</li>
+<li>Big If</li>
+<li>Spacy</li>
+</ul>
+<p>As you learned it lecture, one way to measure stastical significance is by doing a k-cross validation. Once again, scikit-learn has a convenient <a href="https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.KFold.html">KFold</a> class that splits a given dataset input and output into <strong>k</strong> folds. Here we will use <strong>k</strong> $=5$ which gives us a ratio of 0.2 validation set. We hold out the test set, and do this procedure only on the train set. Note that the following may take 10 minutes to run as the spacy model gets retrained with 200 examples every new k-fold.</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">k</span> <span class="o">=</span> <span class="mi">5</span> <span class="c1"># NOTE: You can change the value of k via the argument here!</span>
+<span class="n">k_fold</span> <span class="o">=</span> <span class="n">KFold</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+<span class="n">kfold_iteration</span> <span class="o">=</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">k_fold</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">x_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">))</span>
+
+<span class="n">metrics</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;Rand Uniform&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;acc&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;pre&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;rec&#39;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+    <span class="s2">&quot;Rand Binom p=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">prior_p</span><span class="p">):</span> <span class="p">{</span>
+        <span class="s1">&#39;acc&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;pre&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;rec&#39;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+    <span class="s2">&quot;Always False&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;acc&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;pre&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;rec&#39;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+    <span class="s2">&quot;Big If&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;acc&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;pre&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;rec&#39;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+    <span class="s2">&quot;Spacy&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;acc&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;pre&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;rec&#39;</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+
+<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">train_idx</span><span class="p">,</span> <span class="n">val_idx</span><span class="p">)</span> <span class="ow">in</span> <span class="n">kfold_iteration</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;K-cross validation iteration </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+    <span class="n">x_tr</span><span class="p">,</span> <span class="n">x_val</span> <span class="o">=</span> <span class="n">x_train</span><span class="p">[</span><span class="n">train_idx</span><span class="p">],</span> <span class="n">x_train</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+    <span class="n">y_tr</span><span class="p">,</span> <span class="n">y_val</span> <span class="o">=</span> <span class="n">y_train</span><span class="p">[</span><span class="n">train_idx</span><span class="p">],</span> <span class="n">y_train</span><span class="p">[</span><span class="n">val_idx</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">&quot;Rand Uniform&quot;</span><span class="p">,</span> <span class="n">rand_binom_uniform_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Rand Binom p=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">prior_p</span><span class="p">),</span> <span class="n">rand_binom_biased_classifier</span><span class="p">),</span> 
+        <span class="p">(</span><span class="s2">&quot;Always False&quot;</span><span class="p">,</span> <span class="n">always_false_classifier</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">&quot;Big If&quot;</span><span class="p">,</span> <span class="n">big_if_classifier</span><span class="p">)]:</span>
+
+        <span class="n">val_preds</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_val</span><span class="p">)</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;pre&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">precision_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;rec&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">recall_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">model_name</span><span class="p">,</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">[(</span><span class="s2">&quot;Spacy&quot;</span><span class="p">,</span> <span class="n">nlp</span><span class="p">)]:</span>
+        <span class="n">train_data_dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;1&quot;</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="s2">&quot;0&quot;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">200</span><span class="p">):</span> <span class="c1"># NOTE: you can increase the training size by making this number larger</span>
+            <span class="n">label_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">y_tr</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">train_data_dict</span><span class="p">[</span><span class="n">label_str</span><span class="p">]</span> <span class="o">=</span> <span class="n">train_data_dict</span><span class="p">[</span><span class="n">label_str</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">x_tr</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+
+        <span class="n">nlp</span> <span class="o">=</span> <span class="n">spacy</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;en_core_web_sm&quot;</span><span class="p">)</span> <span class="c1"># nlp = spacy.blank(&quot;en&quot;) </span>
+        <span class="n">nlp</span><span class="o">.</span><span class="n">add_pipe</span><span class="p">(</span>
+            <span class="s2">&quot;text_categorizer&quot;</span><span class="p">,</span> 
+            <span class="n">config</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">train_data_dict</span><span class="p">,</span> 
+                <span class="s2">&quot;model&quot;</span><span class="p">:</span> <span class="s2">&quot;sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;device&quot;</span><span class="p">:</span> <span class="s2">&quot;cpu&quot;</span>
+            <span class="p">}</span>
+        <span class="p">)</span>    
+        <span class="n">val_preds</span> <span class="o">=</span> <span class="n">predict_spacy</span><span class="p">(</span><span class="n">nlp</span><span class="p">,</span> <span class="n">x_val</span><span class="p">)</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accuracy_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;pre&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">precision_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+        <span class="n">metrics</span><span class="p">[</span><span class="n">model_name</span><span class="p">][</span><span class="s1">&#39;rec&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">recall_score</span><span class="p">(</span><span class="n">y_val</span><span class="p">,</span> <span class="n">val_preds</span><span class="p">))</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">In&nbsp;[&nbsp;]:</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">acc_means</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">acc_stds</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">pre_means</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">pre_stds</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">rec_means</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">rec_stds</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="n">model_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">metrics</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="n">model_names</span><span class="p">:</span>
+    <span class="n">acc_means</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;acc&#39;</span><span class="p">]))</span>
+    <span class="n">acc_stds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;acc&#39;</span><span class="p">]))</span>
+    <span class="c1">#</span>
+    <span class="n">pre_means</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;pre&#39;</span><span class="p">]))</span>
+    <span class="n">pre_stds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;pre&#39;</span><span class="p">]))</span>
+    <span class="c1">#</span>
+    <span class="n">rec_means</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;rec&#39;</span><span class="p">]))</span>
+    <span class="n">rec_stds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">metrics</span><span class="p">[</span><span class="n">model</span><span class="p">][</span><span class="s1">&#39;rec&#39;</span><span class="p">]))</span>
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model_names</span><span class="p">))</span>
+<span class="n">width</span> <span class="o">=</span> <span class="mf">0.25</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+<span class="n">rects1</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">acc_means</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span>  <span class="n">yerr</span><span class="o">=</span><span class="n">acc_stds</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Accuracy&#39;</span><span class="p">,</span> <span class="n">edgecolor</span> <span class="o">=</span> <span class="s1">&#39;black&#39;</span><span class="p">)</span>
+<span class="n">rects1</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span> <span class="p">,</span> <span class="n">pre_means</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span>  <span class="n">yerr</span><span class="o">=</span><span class="n">pre_stds</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Precision&#39;</span><span class="p">,</span> <span class="n">edgecolor</span> <span class="o">=</span> <span class="s1">&#39;black&#39;</span><span class="p">)</span>
+<span class="n">rects2</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">rec_means</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span>  <span class="n">yerr</span><span class="o">=</span><span class="n">rec_stds</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Recall&#39;</span><span class="p">,</span> <span class="n">edgecolor</span> <span class="o">=</span> <span class="s1">&#39;black&#39;</span><span class="p">)</span>
+
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Metric value&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;k=5-cross validation metric variance&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">width</span><span class="p">,</span> <span class="n">model_names</span><span class="p">,</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Q: While you may not have enough time to run these experiments during today's practical session, what difference do you think you would notice when k = 2 vs. k = 5 vs. k=10?</strong></p>
+<p><em>A:</em> TODO - answer here...</p>
+
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered celltag_solution"><div class="prompt input_prompt">
+</div><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>{toggle} Click the button to reveal the answer!
+SOLUTION:
+k=2 divides the training &amp; validation set into 50%, making the training set smaller and the validation set larger the 2 times it get evaluated on. This can make the variance look smaller than how it actually can be with k=5. Similarly a large enough k value could make the variance look much larger as the label distribution of the validation set can change more drastically.</code></p>
+
+</div>
+</div>
+</div>
+ 
+
+</body>
+</html>
